@@ -1,0 +1,157 @@
+%% Stability analysis in unsteady 2D Heat conduction problem
+
+% Timestep transient explicit
+clear all 
+clc
+
+clear all
+clc
+
+% Parameters and grid setup
+nx = 50;
+ny = 50;
+Lx = 1;
+Ly = 1;
+T_top = 600;
+T_bottom = 900;
+T_left = 400;
+T_right = 800;
+dx = Lx / (nx - 1);
+dy = Ly / (ny - 1);
+
+% Initial temperature field
+T = ones(nx, ny) * 500;
+T(:, 1) = T_left;
+T(:, end) = T_right;
+T(1, :) = T_top;
+T(end, :) = T_bottom;
+
+% Time step sizes
+dt_values = [1e-4, 1e-3, 1e-2, 1e-1];
+
+% Perform explicit transient analysis for different time step sizes
+for dt = dt_values
+    explicitTransientAnalysis(T, dx, dy, T_top, T_bottom, T_left, T_right, dt);
+end
+
+function explicitTransientAnalysis(T, dx, dy, T_top, T_bottom, T_left, T_right, dt)
+    % Parameters
+    max_iterations = 1000;
+    error_criteria = 1e-4;
+
+    % Stability condition for explicit method
+    CFL_explicit = (max(dx, dy) ^ 2) / (4 * dt);
+    
+    % Check stability
+    if CFL_explicit > 1
+        fprintf('Explicit method is unstable for CFL = %.4f\n', CFL_explicit);
+        return;
+    end
+
+    % Time-stepping loop
+    for iterations = 1:max_iterations
+        T_old = T;
+
+        % Update temperature field based on explicit method
+        for i = 2:size(T, 1) - 1
+            for j = 2:size(T, 2) - 1
+                T(i, j) = T_old(i, j) + (dt / (dx * dy)) * ...
+                    (T_old(i + 1, j) + T_old(i - 1, j) - 4 * T_old(i, j) + T_old(i, j + 1) + T_old(i, j - 1));
+            end
+        end
+
+        % Check convergence
+        max_error = max(abs(T(:) - T_old(:)));
+        if max_error < error_criteria
+            break;
+        end
+    end
+
+    % Visualize results
+    figure;
+    imagesc(T);
+    title(['Explicit Transient Analysis (dt = ' num2str(dt) ', CFL = ' num2str(CFL_explicit) ')']);
+    colormap('jet');
+    colorbar;
+end
+
+---------------------------------------------------------------------------------------------------------------------------------------
+
+% Implicit Transient timestep
+clear all
+clc
+
+% Parameters and grid setup
+nx = 50;
+ny = 50;
+Lx = 1;
+Ly = 1;
+T_top = 600;
+T_bottom = 900;
+T_left = 400;
+T_right = 800;
+dx = Lx / (nx - 1);
+dy = Ly / (ny - 1);
+
+% Initial temperature field
+T = ones(nx, ny) * 500;
+T(:, 1) = T_left;
+T(:, end) = T_right;
+T(1, :) = T_top;
+T(end, :) = T_bottom;
+
+% Time step sizes
+dt_values = [1e-4, 1e-3, 1e-2, 1e-1];
+
+% Perform implicit transient analysis for different time step sizes
+for dt = dt_values
+    implicitTransientAnalysis(T, dx, dy, T_top, T_bottom, T_left, T_right, dt);
+end
+
+function implicitTransientAnalysis(T, dx, dy, T_top, T_bottom, T_left, T_right, dt)
+    % Parameters
+    max_iterations = 1000;
+    error_criteria = 1e-4;
+
+    % Stability condition for implicit method
+    CFL_implicit = (max(dx, dy) ^ 2) / (4 * dt);
+    
+    % Check stability
+    if CFL_implicit > 1
+        fprintf('Implicit method is unstable for CFL = %.4f\n', CFL_implicit);
+        return;
+    end
+
+    % Construct coefficient matrix and solve the linear system
+    A = constructCoefficientMatrix(size(T), dx, dy, dt);
+    B = reshape(T(2:end-1, 2:end-1), [], 1);
+    X = A \ B;
+
+    % Update temperature field
+    T(2:end-1, 2:end-1) = reshape(X, size(T) - [2 2]);
+
+    % Visualize results
+    figure;
+    imagesc(T);
+    title(['Implicit Transient Analysis (dt = ' num2str(dt) ', CFL = ' num2str(CFL_implicit) ')']);
+    colormap('jet');
+    colorbar;
+end
+
+function A = constructCoefficientMatrix(sizeT, dx, dy, dt)
+    % Construct the coefficient matrix for the implicit method
+    nx = sizeT(1);
+    ny = sizeT(2);
+
+    delta_x2 = dx^2;
+    delta_y2 = dy^2;
+
+    main_diag = 1 + 2 * (dt / delta_x2 + dt / delta_y2);
+    off_diag = -dt / delta_x2;
+    
+    A = spdiags([off_diag * ones(nx-2, 1), main_diag * ones(nx-2, 1), off_diag * ones(nx-2, 1)], [-1, 0, 1], nx-2, nx-2);
+    
+    A = kron(A, speye(ny-2)) + kron(speye(nx-2), A);
+end
+
+----------------------------------------------------------------------------------------------------------------------------------------
